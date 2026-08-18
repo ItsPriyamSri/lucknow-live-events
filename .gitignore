@@ -195,6 +195,3 @@ docs/design/**
 docs/adr/**
 docs/readiness/**
 skills-lock.json
-
-# import-linter contract cache (backend/v1 module boundaries)
-.import_linter_cache/
