@@ -2,6 +2,8 @@
 
 > A living aggregator of tech events happening in **Lucknow, UP, India** — powered by an AI discovery pipeline, not manual curation.
 
+> **Rebuild in progress.** The project is being rebuilt from AI-based discovery to small per-platform adapters (Luma, Unstop, GDG/Bevy) that read public event data once a day. No AI is used in the new core flow. Track the work in the [`v1 core flow` milestone](https://github.com/LucknowAI/lucknow-live-events/milestone/).
+
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi)](https://fastapi.tiangolo.com)
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python)](https://python.org)
