@@ -128,6 +128,23 @@ This starts:
 docker compose -f docker/docker-compose.dev.yml exec api alembic upgrade head
 ```
 
+### Backend tests
+
+Create an empty, dedicated test database on the development Docker Postgres:
+
+```bash
+docker compose -f docker/docker-compose.dev.yml up -d postgres
+docker compose -f docker/docker-compose.dev.yml exec postgres createdb -U user lucknow_events_test
+export TEST_DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/lucknow_events_test
+make test
+```
+
+Requires Python 3.12+ and `uv`; `make test` installs the locked development dependencies.
+`TEST_DATABASE_URL` is required and must use `postgresql+asyncpg` with a database name
+ending in `_test`. Alembic runs once per test session; each test uses a rolled-back
+transaction, including when application code calls `commit()`. Never use a live database.
+Pass pytest arguments with `make test TEST_ARGS='-v'`.
+
 ### 4. Trigger your first discovery run
 
 The discovery agent runs automatically every 3 hours via Celery Beat. To trigger it immediately:

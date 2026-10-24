@@ -16,7 +16,7 @@ crawl-all:
 	docker compose -f docker/docker-compose.dev.yml exec worker celery -A workers.celery_app call workers.tasks.crawl.crawl_all_sources
 
 test:
-	docker compose -f docker/docker-compose.dev.yml exec api pytest backend/tests/ -v
+	cd backend && uv run --frozen pytest $(TEST_ARGS)
 
 lint:
 	docker compose -f docker/docker-compose.dev.yml exec api ruff check backend/ && docker compose -f docker/docker-compose.dev.yml exec api ruff format --check backend/
