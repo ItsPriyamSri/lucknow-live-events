@@ -37,7 +37,11 @@ export function EventQueueTab() {
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    let active = true;
+    queueMicrotask(() => { if (active) void load(); });
+    return () => { active = false; };
+  }, []);
 
   async function handleRemove(id: string) {
     if (!confirm("Remove this item from the pipeline queue? This cannot be undone.")) return;
