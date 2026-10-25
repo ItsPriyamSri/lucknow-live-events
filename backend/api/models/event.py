@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Boolean, Float, ForeignKey, Index, String, Text
+from sqlalchemy import Boolean, Float, ForeignKey, Index, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -14,6 +14,12 @@ from api.models.base import Base, uuid_pk
 
 class Event(Base):
     __tablename__ = "events"
+    __table_args__ = (
+        # Postgres treats NULLs as distinct, so old rows without external_id don't clash.
+        UniqueConstraint(
+            "source_platform", "external_id", name="uq_events_source_platform_external_id"
+        ),
+    )
 
     id: Mapped[str] = uuid_pk()
     slug: Mapped[str] = mapped_column(String(300), nullable=False, unique=True, index=True)
@@ -40,6 +46,13 @@ class Event(Base):
     organizer_name: Mapped[str | None] = mapped_column(String(300))
     community_name: Mapped[str | None] = mapped_column(String(300))
     source_platform: Mapped[str | None] = mapped_column(String(50))
+    source_id: Mapped[str | None] = mapped_column(
+        ForeignKey("sources.id", ondelete="SET NULL"), index=True
+    )
+    # The platform's own event ID; with source_platform it identifies an event across runs.
+    external_id: Mapped[str | None] = mapped_column(Text)
+    content_hash: Mapped[str | None] = mapped_column(Text)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     canonical_url: Mapped[str] = mapped_column(Text, nullable=False)
     registration_url: Mapped[str | None] = mapped_column(Text)
