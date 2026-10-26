@@ -180,7 +180,8 @@ uploads/
 tmp/
 temp/
 
-
+# Future planning docs (local backup - not tracked)
+future_planning_phases/
 
 # Whitelist specific markdown files
 !README.md
