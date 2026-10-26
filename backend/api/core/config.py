@@ -20,7 +20,8 @@ class Settings(BaseSettings):
     STORAGE_TYPE: str = "local"
     LOCAL_STORAGE_PATH: str = "/app/data/snapshots"
 
-    JWT_SECRET: str = "change_me"
+    # No fallback signing key: public endpoints work, admin auth stays disabled.
+    JWT_SECRET: str = ""
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 60
 
@@ -33,4 +34,3 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-

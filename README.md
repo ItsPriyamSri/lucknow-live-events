@@ -103,13 +103,13 @@ lucknow-events/
 ```bash
 git clone https://github.com/ItsPriyamSri/Lucknow-events.git
 cd Lucknow-events
-cp .env.example .env   # then fill in your values (see Environment Variables below)
+cp .env.example.dev .env.dev   # then fill in your values (see Environment Variables below)
 ```
 
 ### 2. Start all services
 
 ```bash
-docker compose -f docker/docker-compose.dev.yml up --build
+docker compose --env-file .env.dev -f docker/docker-compose.dev.yml up --build
 ```
 
 This starts:
@@ -125,7 +125,7 @@ This starts:
 ### 3. Run database migrations
 
 ```bash
-docker compose -f docker/docker-compose.dev.yml exec api alembic upgrade head
+docker compose --env-file .env.dev -f docker/docker-compose.dev.yml exec api alembic upgrade head
 ```
 
 ### 4. Trigger your first discovery run
@@ -133,7 +133,7 @@ docker compose -f docker/docker-compose.dev.yml exec api alembic upgrade head
 The discovery agent runs automatically every 3 hours via Celery Beat. To trigger it immediately:
 
 ```bash
-docker compose -f docker/docker-compose.dev.yml exec api python -c "
+docker compose --env-file .env.dev -f docker/docker-compose.dev.yml exec api python -c "
 from workers.tasks.discovery import auto_discover_events
 auto_discover_events.delay()
 print('Discovery queued.')
@@ -146,23 +146,34 @@ Or use the Mission Control dashboard (URL-only, not linked in the UI).
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` and fill in:
+Use separate, ignored files for each environment:
 
-| Variable | Description | Example |
-|---|---|---|
-| `DATABASE_URL` | Async PostgreSQL URL for SQLAlchemy | `postgresql+asyncpg://user:password@postgres:5432/lucknow_events` |
-| `ALEMBIC_DATABASE_URL` | Sync PostgreSQL URL for Alembic migrations | `postgresql+psycopg2://user:...` |
-| `REDIS_URL` | Redis connection URL | `redis://redis:6379/0` |
-| `GEMINI_API_KEY` | Google Gemini API key | `AIzaSy...` |
-| `GEMINI_MODEL` | Gemini model to use | `gemini-2.0-flash` |
-| `JWT_SECRET_KEY` | Secret for signing admin JWTs | any random string |
-| `ADMIN_EMAIL` | Admin login email | `admin@example.com` |
-| `ADMIN_PASSWORD_HASH` | bcrypt hash of admin password | `$2b$12$...` |
-| `NEXT_PUBLIC_API_URL` | Public API URL (browser-side) | `http://localhost:8000/api/v1` |
-| `INTERNAL_API_URL` | Internal API URL (SSR/Docker) | `http://api:8000/api/v1` |
-| `STORAGE_TYPE` | Where to store snapshots (`local` or `r2`) | `local` |
-| `LOCAL_STORAGE_PATH` | Path for local snapshot storage | `/app/data/snapshots` |
-| `CORS_ORIGINS` | Allowed CORS origins | `http://localhost:3000` |
+- Development: copy `.env.example.dev` to `.env.dev` and pass `--env-file .env.dev` with `docker/docker-compose.dev.yml` (also used by `make dev`).
+- Production: copy `.env.example.prod` to `.env.prod` and pass `--env-file .env.prod` with `docker/docker-compose.prod.yml`. This Compose file runs the backend services; configure the separately hosted frontend with the public URL settings below before building it.
+- Without Compose: copy `.env.example` to `backend/.env` or export the backend variables in your shell. Use localhost database/Redis URLs. Put only frontend URL/site settings in `apps/web/.env.local`; Next.js does not read the repository-root env file.
+
+Run Compose commands from the repository root. `--env-file` supplies Compose interpolation; each Compose file also loads its matching file into the backend services. Shell variables take precedence, so avoid mixing exported production values with development commands. Both templates intentionally leave credentials and database URLs blank. Fill them privately before starting services. Compose rejects a missing database password/URL, and production also requires the admin hash and signing key.
+
+| Variable | Purpose |
+|---|---|
+| `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Container database settings; the password has no default |
+| `DATABASE_URL` | Async PostgreSQL URL with matching credentials (`postgresql+asyncpg://…`) |
+| `ALEMBIC_DATABASE_URL` | Sync URL for offline migrations (`postgresql+psycopg2://…`); online migrations use `DATABASE_URL` |
+| `REDIS_URL` | Redis URL; use `redis://redis:6379/0` inside Compose |
+| `JWT_SECRET` | Private backend signing key; use a long random value supplied securely, never `NEXT_PUBLIC_*` |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH` | Backend login identity and bcrypt password hash |
+| `AI_MODE`, `GEMINI_API_KEY`, `GEMINI_MODEL` | Mock mode needs no provider key; supply a key only when opting into Gemini |
+| `CORS_ORIGINS` | Comma-separated frontend origins |
+| `DEBUG`, `LOG_LEVEL` | Development/production diagnostics; production Compose forces debug off |
+| `STORAGE_TYPE`, `LOCAL_STORAGE_PATH` | Snapshot storage configuration |
+| `NEXT_PUBLIC_API_URL`, `INTERNAL_API_URL` | Public API endpoint and server-side/proxy endpoint, including `/api/v1`; available when building and running the frontend |
+| `NEXT_PUBLIC_SITE_NAME`, `NEXT_PUBLIC_SITE_URL` | Public site metadata |
+
+Percent-encode reserved password characters in database URLs. Single-quote bcrypt hash values in env files to preserve their literal `$` characters; do not double the dollar signs. Never copy backend secrets into frontend variables or commit filled env files.
+
+Open `/mission-control/login` to sign in. There is no query-string key: a key bundled in browser JavaScript cannot protect admin access. The backend still verifies the admin password and requires a valid admin JWT on protected endpoints. With a missing/blank `JWT_SECRET`, login returns 503 and token verification rejects requests; public endpoints remain available. Missing `ADMIN_PASSWORD_HASH` also disables login.
+
+These files describe source configuration only. Applying new database credentials to an existing PostgreSQL volume does not change its password. Existing deployments must retain their configured credentials; changing live settings or rotating credentials is a separate operator action.
 
 ---
 
@@ -170,16 +181,16 @@ Copy `.env.example` to `.env` and fill in:
 
 ```bash
 # API only
-docker compose -f docker/docker-compose.dev.yml up api postgres redis
+docker compose --env-file .env.dev -f docker/docker-compose.dev.yml up api postgres redis
 
 # Frontend only (after installing deps)
 cd apps/web && pnpm install && pnpm dev
 
 # Celery worker only
-docker compose -f docker/docker-compose.dev.yml up worker
+docker compose --env-file .env.dev -f docker/docker-compose.dev.yml up worker
 
 # Celery beat (scheduler) only
-docker compose -f docker/docker-compose.dev.yml up beat
+docker compose --env-file .env.dev -f docker/docker-compose.dev.yml up beat
 ```
 
 ---
@@ -188,13 +199,13 @@ docker compose -f docker/docker-compose.dev.yml up beat
 
 ```bash
 # Apply all pending migrations
-docker compose -f docker/docker-compose.dev.yml exec api alembic upgrade head
+docker compose --env-file .env.dev -f docker/docker-compose.dev.yml exec api alembic upgrade head
 
 # Create a new migration
-docker compose -f docker/docker-compose.dev.yml exec api alembic revision --autogenerate -m "your_description"
+docker compose --env-file .env.dev -f docker/docker-compose.dev.yml exec api alembic revision --autogenerate -m "your_description"
 
 # Downgrade one step
-docker compose -f docker/docker-compose.dev.yml exec api alembic downgrade -1
+docker compose --env-file .env.dev -f docker/docker-compose.dev.yml exec api alembic downgrade -1
 ```
 
 ---

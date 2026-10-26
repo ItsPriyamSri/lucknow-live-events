@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { adminService, type StatsOut } from "@/lib/admin-api";
 import { Shield, Loader2, LayoutDashboard, Database, Inbox, List, LogOut } from "lucide-react";
 
@@ -12,53 +12,41 @@ import { SourcesTab } from "./_components/SourcesTab";
 import { ModerationTab } from "./_components/ModerationTab";
 import { EventQueueTab } from "./_components/EventQueueTab";
 
-const SECRET_KEY = "wakandaforever";
 type Tab = "events" | "sources" | "moderation" | "queue";
 
-function DashboardInner() {
+export default function MissionControlPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const key = searchParams.get("key");
 
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [stats, setStats] = useState<StatsOut | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("events");
 
   useEffect(() => {
-    if (key !== SECRET_KEY) return;
     let active = true;
     queueMicrotask(() => {
       if (!active) return;
       const token = localStorage.getItem("admin_token");
       if (!token) {
-        router.replace(`/mission-control/login?key=${SECRET_KEY}`);
+        router.replace("/mission-control/login");
         return;
       }
-      setAuthed(true);
       adminService.stats().then((value) => {
-        if (active) setStats(value);
+        if (active) {
+          setStats(value);
+          setAuthed(true);
+        }
       }).catch(() => {
         if (!active) return;
         localStorage.removeItem("admin_token");
-        router.replace(`/mission-control/login?key=${SECRET_KEY}`);
+        router.replace("/mission-control/login");
       });
     });
     return () => { active = false; };
-  }, [key, router]);
-
-  // Gate: wrong key → fake 404
-  if (key !== SECRET_KEY) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background">
-        <h1 className="text-6xl font-extrabold text-muted-foreground/20">404</h1>
-        <p className="text-muted-foreground mt-3 text-sm">Page not found.</p>
-      </div>
-    );
-  }
+  }, [router]);
 
   function logout() {
     localStorage.removeItem("admin_token");
-    router.replace(`/mission-control/login?key=${SECRET_KEY}`);
+    router.replace("/mission-control/login");
   }
 
   if (authed === null) {
@@ -132,13 +120,5 @@ function DashboardInner() {
         {activeTab === "moderation" && <ModerationTab />}
       </div>
     </div>
-  );
-}
-
-export default function MissionControlPage() {
-  return (
-    <Suspense>
-      <DashboardInner />
-    </Suspense>
   );
 }
