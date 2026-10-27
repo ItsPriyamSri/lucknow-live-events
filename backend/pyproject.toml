@@ -38,13 +38,15 @@ quote-style = "double"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Import packages from backend/. tests/engine has no __init__.py on purpose:
+# adding one would make pytest treat that folder as the engine package.
 pythonpath = ["."]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["ai*", "api*", "workers*", "ingestion*"]
+include = ["ai*", "api*", "workers*", "ingestion*", "engine*"]
 
 [dependency-groups]
 dev = [
