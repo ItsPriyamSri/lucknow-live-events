@@ -1,7 +1,7 @@
 """The only module that makes network calls."""
 
+import asyncio
 import math
-import threading
 import time
 
 import httpx
@@ -16,14 +16,14 @@ _MAX_RETRIES = 2
 _BACKOFF_S = (1.0, 2.0)
 _MAX_RETRY_AFTER_S = 60.0
 
-# ponytail: one in-flight request process-wide. Fine for a single cron pass.
+# ponytail: one in-flight request process-wide. Fine for sequential fetching.
 # Upgrade: per-host limit if a later issue fetches sources concurrently.
-_lock = threading.Lock()
-_client: httpx.Client | None = None
+_lock = asyncio.Lock()
+_client: httpx.AsyncClient | None = None
 
 
-def make_client(transport: httpx.BaseTransport | None = None) -> httpx.Client:
-    return httpx.Client(
+def make_client(transport: httpx.AsyncBaseTransport | None = None) -> httpx.AsyncClient:
+    return httpx.AsyncClient(
         headers={"User-Agent": USER_AGENT},
         timeout=TIMEOUT,
         follow_redirects=True,
@@ -31,11 +31,19 @@ def make_client(transport: httpx.BaseTransport | None = None) -> httpx.Client:
     )
 
 
-def _shared_client() -> httpx.Client:
+def _shared_client() -> httpx.AsyncClient:
     global _client
     if _client is None:
         _client = make_client()
     return _client
+
+
+async def close() -> None:
+    """Close the shared client. The runner calls this once, when the run ends."""
+    global _client
+    if _client is not None:
+        await _client.aclose()
+        _client = None
 
 
 def _delay(response: httpx.Response, attempt: int) -> float:
@@ -54,11 +62,11 @@ def _retryable(status: int) -> bool:
     return status == 429 or status >= 500
 
 
-def get(
+async def get(
     url: str,
     *,
     params: dict[str, str | int | float] | None = None,
-    client: httpx.Client | None = None,
+    client: httpx.AsyncClient | None = None,
 ) -> httpx.Response:
     """GET `url`. Two retries (three tries) on 429, 5xx, timeouts and dropped connections.
 
@@ -67,16 +75,16 @@ def get(
     """
     http = client or _shared_client()
     requested = _request_url(url, params)
-    with _lock:
+    async with _lock:
         for attempt in range(_MAX_RETRIES + 1):
             started = time.perf_counter()
             try:
-                response = http.get(url, params=params)
+                response = await http.get(url, params=params)
             except (httpx.TimeoutException, httpx.NetworkError):
                 log.info("http.request", url=requested, status=None, duration_ms=_ms(started))
                 if attempt == _MAX_RETRIES:
                     raise
-                time.sleep(_BACKOFF_S[attempt])
+                await asyncio.sleep(_BACKOFF_S[attempt])
                 continue
             log.info(
                 "http.request",
@@ -85,8 +93,8 @@ def get(
                 duration_ms=_ms(started),
             )
             if _retryable(response.status_code) and attempt < _MAX_RETRIES:
-                response.close()
-                time.sleep(_delay(response, attempt))
+                await response.aclose()
+                await asyncio.sleep(_delay(response, attempt))
                 continue
             response.raise_for_status()
             return response
