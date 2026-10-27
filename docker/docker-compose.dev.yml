@@ -3,9 +3,9 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: lucknow_events
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ${POSTGRES_DB:-lucknow_events}
+      POSTGRES_USER: ${POSTGRES_USER:-user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the selected env file}
     ports: ["5432:5432"]
     volumes: [pgdata:/var/lib/postgresql/data]
 
@@ -21,8 +21,9 @@ services:
       - ../backend:/app:z
       - ../data:/app/data:z
       - ../scripts:/app/scripts:z
-    env_file: ../.env
+    env_file: ../.env.dev
     environment:
+      - DATABASE_URL=${DATABASE_URL:?Set DATABASE_URL in .env.dev}
       - DOCKER_ENV=1
     depends_on: [postgres, redis]
 
@@ -33,9 +34,10 @@ services:
       - ../backend:/app:z
       - ../data:/app/data:z
       - ../scripts:/app/scripts:z
-    env_file: ../.env
+    env_file: ../.env.dev
     environment:
       - PYTHONPATH=/app
+      - DATABASE_URL=${DATABASE_URL:?Set DATABASE_URL in .env.dev}
       - DOCKER_ENV=1
     depends_on: [redis, postgres]
 
@@ -46,7 +48,7 @@ services:
       - ../backend:/app:z
       - ../data:/app/data:z
       - ../scripts:/app/scripts:z
-    env_file: ../.env
+    env_file: ../.env.dev
     depends_on: [redis]
 
   flower:
@@ -57,7 +59,7 @@ services:
       - ../backend:/app:z
       - ../data:/app/data:z
       - ../scripts:/app/scripts:z
-    env_file: ../.env
+    env_file: ../.env.dev
     depends_on: [redis]
 
   web:
@@ -68,7 +70,10 @@ services:
       - ../apps/web:/app:z
     environment:
       # Server-side fetches from inside the web container must hit the api service.
-      INTERNAL_API_URL: http://api:8000/api/v1
+      INTERNAL_API_URL: ${INTERNAL_API_URL:-http://api:8000/api/v1}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+      NEXT_PUBLIC_SITE_NAME: ${NEXT_PUBLIC_SITE_NAME:-Lucknow Tech Events}
 
 volumes:
   pgdata:
