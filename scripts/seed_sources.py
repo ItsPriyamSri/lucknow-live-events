@@ -245,7 +245,11 @@ INITIAL_SOURCES = [
         "trust_score": 0.70,
         "enabled": True,
         "crawl_interval_hours": 6,
-        "config_json": {"location": "Lucknow", "max_items": 20},
+        "config_json": {
+            "location": "Lucknow",
+            "max_items": 20,
+            "opportunity_types": ["hackathons", "competitions", "workshops"],
+        },
     },
     # ── FOSS United ──────────────────────────────────────────────────────────
     {
@@ -414,6 +418,15 @@ async def seed() -> None:
             ).scalar_one_or_none()
 
             if existing:
+                if (
+                    existing.platform == src_data["platform"] == "unstop"
+                    and "opportunity_types" not in existing.config_json
+                ):
+                    existing.config_json = {
+                        **existing.config_json,
+                        "opportunity_types": src_data["config_json"]["opportunity_types"],
+                    }
+                    log.info("seed.config_upgraded", name=src_data["name"])
                 log.info("seed.already_exists", name=src_data["name"])
                 continue
 
