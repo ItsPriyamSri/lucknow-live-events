@@ -1,4 +1,5 @@
 from engine.sources.base import Source
+from engine.sources.bevy import Bevy
 
-# Instances, not classes. Empty until Bevy (#13): REGISTRY["bevy"] = Bevy().
-REGISTRY: dict[str, Source] = {}
+# Instances, not classes. The key is `sources.platform` and `NormalizedEvent.source_platform`.
+REGISTRY: dict[str, Source] = {"bevy": Bevy()}
