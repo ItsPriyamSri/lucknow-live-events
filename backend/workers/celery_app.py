@@ -19,9 +19,7 @@ celery_app.conf.update(
 
 celery_app.autodiscover_tasks([
     "workers.tasks.crawl",
-    "workers.tasks.pipeline",
     "workers.tasks.feeds",
-    "workers.tasks.watchlist",
 ])
 
 # Celery Beat schedule lives here (import side-effect).

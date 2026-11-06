@@ -13,7 +13,7 @@ seed:
 	docker compose --env-file .env.dev -f docker/docker-compose.dev.yml exec api python scripts/seed_sources.py
 
 crawl-all:
-	docker compose --env-file .env.dev -f docker/docker-compose.dev.yml exec worker celery -A workers.celery_app call workers.tasks.crawl.crawl_all_sources
+	docker compose --env-file .env.dev -f docker/docker-compose.dev.yml exec api python -m engine.run
 
 test:
 	cd backend && uv run --frozen pytest $(TEST_ARGS)
