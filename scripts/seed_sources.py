@@ -380,6 +380,22 @@ INITIAL_SOURCES = [
 ]
 
 
+INITIAL_SOURCES.append(
+    {
+        "name": "Luma Lucknow",
+        "platform": "luma",
+        "base_url": "https://luma.com/discover",
+        "enabled": True,
+        "config_json": {
+            "latitude": 26.85,
+            "longitude": 80.95,
+            "categories": ["Tech"],
+            "allowed_hosts": [],  # Stable usr-... API IDs, not display names.
+        },
+    }
+)
+
+
 # GDG chapters read by the engine's Bevy adapter (engine/sources/bevy.py).
 # The chapter id is in each chapter page's source (`chapter_id = '1227'`).
 # Names end in "(Bevy)" because seeding skips names that already exist, and the
