@@ -54,13 +54,15 @@ class Luma:
         hosts = raw.get("hosts") or []
         categories = {category["name"] for category in raw.get("categories") or []}
         host_ids = {host["api_id"] for host in hosts}
+        organizer_names = [host["name"] for host in hosts if host.get("name")]
         if not (
             categories.intersection(config.get("categories", []))
             or host_ids.intersection(config.get("allowed_hosts", []))
         ):
             return Rejection("category_not_allowed")
         event = raw["event"]
-        if event.get("location_type") not in ("online", "offline"):
+        location_type = event.get("location_type")
+        if location_type not in ("online", "offline", "hybrid"):
             return Rejection("unsupported_location_type")
         place, coordinate = event.get("geo_address_info") or {}, event.get("coordinate") or {}
         url = "https://luma.com/" + event["url"].lstrip("/")
@@ -70,12 +72,12 @@ class Luma:
             description=_text(raw.get("description_mirror") or {}).strip() or None,
             start_at=event["start_at"],
             end_at=event.get("end_at"),
-            mode=event["location_type"],
+            mode="offline" if location_type == "hybrid" else location_type,
             venue_name=place.get("address"),
             address=place.get("full_address") or place.get("city_state") or place.get("city"),
             lat=coordinate.get("latitude"),
             lng=coordinate.get("longitude"),
-            organizer_name=", ".join(host["name"] for host in hosts if host.get("name")) or None,
+            organizer_name=", ".join(organizer_names[:3]) or None,
             canonical_url=url,
             registration_url=url,
             poster_url=event.get("cover_url") or None,

@@ -92,6 +92,29 @@ def test_online_and_optional_fields():
     assert REGISTRY["luma"].to_event(raw, CONFIG) == Rejection("unsupported_location_type")
 
 
+
+def test_hybrid_location_maps_to_offline():
+    raw = fixture("tech")
+    raw["event"]["location_type"] = "hybrid"
+    event = REGISTRY["luma"].to_event(raw, CONFIG)
+    assert isinstance(event, NormalizedEvent)
+    assert event.mode == "offline"
+    assert event.venue_name == "Lucknow"
+
+
+def test_organizer_name_uses_first_three_named_hosts():
+    raw = fixture("tech")
+    raw["hosts"] = [
+        {"api_id": "usr-blank", "name": ""},
+        {"api_id": "usr-1", "name": "One"},
+        {"api_id": "usr-2", "name": "Two"},
+        {"api_id": "usr-3", "name": "Three"},
+        {"api_id": "usr-4", "name": "Four"},
+    ]
+    event = REGISTRY["luma"].to_event(raw, CONFIG)
+    assert isinstance(event, NormalizedEvent)
+    assert event.organizer_name == "One, Two, Three"
+
 @pytest.mark.parametrize("cursor,limit", [(None, 3), ("repeated", 3), ("new", 1)])
 async def test_bad_pagination_fails_without_partial_results(monkeypatch, cursor, limit):
     async def get(url, *, params):
