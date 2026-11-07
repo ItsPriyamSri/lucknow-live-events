@@ -1,8 +1,10 @@
 # Lucknow Tech Events
 
-> A living aggregator of tech events happening in **Lucknow, UP, India** — powered by an AI discovery pipeline, not manual curation.
+> A living aggregator of tech events happening in **Lucknow, UP, India**.
 
 > **Rebuild in progress.** The project is being rebuilt from AI-based discovery to small per-platform adapters (Luma, Unstop, GDG/Bevy) that read public event data once a day. No AI is used in the new core flow. Track the work in the [`v1 core flow` milestone](https://github.com/LucknowAI/lucknow-live-events/milestone/).
+
+> The legacy AI code has been removed. The older architecture and pipeline descriptions below are historical pending the README rewrite (#23). Use the engine command in Local Development; no model-provider key is required.
 
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi)](https://fastapi.tiangolo.com)
@@ -98,7 +100,6 @@ lucknow-events/
 
 - [Docker](https://docs.docker.com/get-docker/) or [Podman](https://podman.io/) with the Compose plugin
 - [Node.js 20+](https://nodejs.org/) and [pnpm](https://pnpm.io/) (`npm i -g pnpm`)
-- A **Google Gemini API key** (get one at [aistudio.google.com](https://aistudio.google.com/app/apikey))
 
 ### 1. Clone and configure
 
@@ -147,19 +148,15 @@ ending in `_test`. Alembic runs once per test session; each test uses a rolled-b
 transaction, including when application code calls `commit()`. Never use a live database.
 Pass pytest arguments with `make test TEST_ARGS='-v'`.
 
-### 4. Trigger your first discovery run
+### 4. Run the event engine
 
-The discovery agent runs automatically every 3 hours via Celery Beat. To trigger it immediately:
+Run `make seed` once to add the initial source rows, then preview the configured platform sources without saving events:
 
 ```bash
-docker compose --env-file .env.dev -f docker/docker-compose.dev.yml exec api python -c "
-from workers.tasks.discovery import auto_discover_events
-auto_discover_events.delay()
-print('Discovery queued.')
-"
+docker compose --env-file .env.dev -f docker/docker-compose.dev.yml exec api python -m engine.run --dry-run
 ```
 
-Or use the Mission Control dashboard (URL-only, not linked in the UI).
+Run `make crawl-all` to fetch and save events with the engine. Daily scheduling is tracked separately in #18.
 
 ---
 
@@ -181,7 +178,7 @@ Run Compose commands from the repository root. `--env-file` supplies Compose int
 | `REDIS_URL` | Redis URL; use `redis://redis:6379/0` inside Compose |
 | `JWT_SECRET` | Private backend signing key; use a long random value supplied securely, never `NEXT_PUBLIC_*` |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH` | Backend login identity and bcrypt password hash |
-| `AI_MODE`, `GEMINI_API_KEY`, `GEMINI_MODEL` | Mock mode needs no provider key; supply a key only when opting into Gemini |
+| `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` | Optional future text-completion helper; leave blank for normal operation. The base URL includes the provider's API prefix (such as `/v1`). |
 | `CORS_ORIGINS` | Comma-separated frontend origins |
 | `DEBUG`, `LOG_LEVEL` | Development/production diagnostics; production Compose forces debug off |
 | `STORAGE_TYPE`, `LOCAL_STORAGE_PATH` | Snapshot storage configuration |
@@ -189,6 +186,8 @@ Run Compose commands from the repository root. `--env-file` supplies Compose int
 | `NEXT_PUBLIC_SITE_NAME`, `NEXT_PUBLIC_SITE_URL` | Public site metadata |
 
 Percent-encode reserved password characters in database URLs. Single-quote bcrypt hash values in env files to preserve their literal `$` characters; do not double the dollar signs. Never copy backend secrets into frontend variables or commit filled env files.
+
+`await llm.complete(prompt, system=None)` is available for future features through an OpenAI-compatible `/chat/completions` endpoint. No API route or engine code calls it. It raises `LLMDisabled` without a key; explicitly configure all three `LLM_*` settings before calling it. Provider errors propagate, with no automatic retries or fabricated fallback text.
 
 Open `/mission-control/login` to sign in. There is no query-string key: a key bundled in browser JavaScript cannot protect admin access. The backend still verifies the admin password and requires a valid admin JWT on protected endpoints. With a missing/blank `JWT_SECRET`, login returns 503 and token verification rejects requests; public endpoints remain available. Missing `ADMIN_PASSWORD_HASH` also disables login.
 

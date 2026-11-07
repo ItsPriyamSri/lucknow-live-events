@@ -12,10 +12,9 @@ class Settings(BaseSettings):
     ALEMBIC_DATABASE_URL: str | None = None
     REDIS_URL: str = "redis://redis:6379/0"
 
-    GEMINI_API_KEY: str | None = None
-    GEMINI_MODEL: str = "gemini-3.0-flash"
-    AI_MODE: str = "mock"  # gemini | mock
-    AI_FALLBACK_TO_MOCK: bool = True
+    LLM_BASE_URL: str = ""
+    LLM_API_KEY: str = ""
+    LLM_MODEL: str = ""
 
     STORAGE_TYPE: str = "local"
     LOCAL_STORAGE_PATH: str = "/app/data/snapshots"

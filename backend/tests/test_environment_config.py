@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 @pytest.mark.parametrize("name", [".env.example", ".env.example.dev", ".env.example.prod"])
 def test_templates_do_not_ship_credentials(name):
     values = dotenv_values(ROOT / name)
-    for key in ["JWT_SECRET", "ADMIN_PASSWORD_HASH", "POSTGRES_PASSWORD", "GEMINI_API_KEY"]:
+    for key in ["JWT_SECRET", "ADMIN_PASSWORD_HASH", "POSTGRES_PASSWORD", "LLM_API_KEY"]:
         assert values[key] == ""
     assert values["DATABASE_URL"] == ""
     assert values["ALEMBIC_DATABASE_URL"] == ""
@@ -96,7 +96,7 @@ def test_compose_loads_selected_environment_and_rejects_missing_credentials(tmp_
         assert env["DATABASE_URL"] == values["DATABASE_URL"]
         assert env["JWT_SECRET"] == values["JWT_SECRET"]
         assert env["ADMIN_PASSWORD_HASH"] == values["ADMIN_PASSWORD_HASH"]
-        assert env["AI_MODE"] == "mock"
+        assert env["LLM_API_KEY"] == ""
         assert env["DEBUG"] == ("false" if mode == "prod" else "true")
     if mode == "dev":
         web_env = services["web"]["environment"]

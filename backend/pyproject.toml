@@ -26,7 +26,6 @@ dependencies = [
   "python-slugify>=8.0",
   "python-dateutil>=2.9",
   "pytz>=2024.1",
-  "google-genai>=1.0.0",
 ]
 
 [tool.ruff]
@@ -44,9 +43,12 @@ pythonpath = ["."]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 
+[tool.setuptools]
+py-modules = ["llm"]
+
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["ai*", "api*", "workers*", "ingestion*", "engine*"]
+include = ["api*", "workers*", "ingestion*", "engine*"]
 
 [dependency-groups]
 dev = [
