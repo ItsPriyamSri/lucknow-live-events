@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 
 import structlog
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.models.event import Event
@@ -105,9 +105,10 @@ async def _source(session: AsyncSession, source: Source, dry_run: bool) -> str:
             await session.commit()
             run_id = run.id
         listing = await adapter.list_events(config)
-        if not listing and await _had_events(session, source.id):
-            # A sudden empty list is a failed fetch. Saving nothing keeps last_seen
-            # put, so a later cleanup does not treat the old events as gone.
+        if not listing and await _has_unended_events(session, source.id):
+            # An empty list is a failed fetch while the source still has an
+            # event that has not ended. Saving nothing keeps last_seen put, so
+            # cleanup does not treat the old events as gone.
             await _finish(
                 session,
                 run_id=run_id,
@@ -201,14 +202,18 @@ async def _collect(adapter, platform: str, config: dict, listing: list) -> tuple
     return events, listed, rejected, reasons
 
 
-async def _had_events(session: AsyncSession, source_id) -> bool:
-    fetched = await session.scalar(
-        select(IngestRun.fetched)
-        .where(IngestRun.source_id == source_id, IngestRun.status == "success")
-        .order_by(IngestRun.started_at.desc())
-        .limit(1)
+async def _has_unended_events(session: AsyncSession, source_id: str) -> bool:
+    # No end date: the start is when the event is over, same rule as cleanup.
+    return bool(
+        await session.scalar(
+            select(Event.id)
+            .where(
+                Event.source_id == source_id,
+                func.coalesce(Event.end_at, Event.start_at) >= datetime.now(UTC),
+            )
+            .limit(1)
+        )
     )
-    return bool(fetched)
 
 
 async def _preview(session: AsyncSession, source: Source, events: list) -> dict[str, int]:
