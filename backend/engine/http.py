@@ -67,28 +67,31 @@ async def get(
     *,
     params: dict[str, str | int | float] | None = None,
     client: httpx.AsyncClient | None = None,
+    log_url: bool = True,
 ) -> httpx.Response:
     """GET `url`. Two retries (three tries) on 429, 5xx, timeouts and dropped connections.
 
     Any other non-2xx response raises immediately. A numeric `Retry-After` on a
-    429 is honored, capped at 60s. The URL is logged, so do not pass secrets.
+    429 is honored, capped at 60s. The URL is logged unless `log_url=False`; never
+    pass secrets in a URL that is logged.
     """
     http = client or _shared_client()
     requested = _request_url(url, params)
+    logged_url = requested if log_url else "<redacted>"
     async with _lock:
         for attempt in range(_MAX_RETRIES + 1):
             started = time.perf_counter()
             try:
                 response = await http.get(url, params=params)
             except (httpx.TimeoutException, httpx.NetworkError):
-                log.info("http.request", url=requested, status=None, duration_ms=_ms(started))
+                log.info("http.request", url=logged_url, status=None, duration_ms=_ms(started))
                 if attempt == _MAX_RETRIES:
                     raise
                 await asyncio.sleep(_BACKOFF_S[attempt])
                 continue
             log.info(
                 "http.request",
-                url=str(response.url),
+                url=str(response.url) if log_url else "<redacted>",
                 status=response.status_code,
                 duration_ms=_ms(started),
             )

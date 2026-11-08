@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import os
 import sys
 from datetime import UTC, datetime
 
@@ -69,7 +68,8 @@ async def _run(session: AsyncSession, platform: str | None, dry_run: bool, ping:
             )
         if platform and not sources:
             log.info("engine.source", platform=platform, status="failed", error="no enabled source")
-            return 1
+            # Fall through: the dead-man ping must still report the failure.
+            failed = True
         # Re-load each source by id. A failed source rolls the session back, which
         # expires the other objects, and a lazy read then fails on async.
         for source_id in [source.id for source in sources]:
@@ -292,15 +292,20 @@ async def _finish(
 
 
 async def _ping(failed: bool) -> None:
-    url = os.environ.get("HEALTHCHECK_URL", "").strip()
+    # Lazy import keeps `python -m engine.run --help` free of a DATABASE_URL.
+    from api.core.config import settings
+
+    url = settings.HEALTHCHECK_URL.strip()
     if not url:
         return
     target = f"{url.rstrip('/')}/fail" if failed else url
     try:
-        response = await http.get(target)
+        # The ping URL is a bearer token: keep it out of the request log.
+        response = await http.get(target, log_url=False)
         await response.aclose()
-    except Exception:  # a missed ping must not change the run's exit code
-        log.exception("engine.healthcheck")
+    except Exception as exc:  # noqa: BLE001  # a missed ping must not change the exit code
+        # Only the type: HTTP errors carry the ping URL in their message.
+        log.warning("engine.healthcheck", error=type(exc).__name__)
 
 
 def main(argv: list[str] | None = None) -> int:
