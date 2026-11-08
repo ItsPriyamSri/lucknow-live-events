@@ -94,23 +94,6 @@ export interface EventUpdate {
   is_cancelled?: boolean;
 }
 
-export interface ModerationItem {
-  id: string;
-  entity_type: string | null;
-  entity_id: string | null;
-  reason: string | null;
-  severity: string | null;
-  status: string;
-  ai_verdict: Record<string, unknown> | null;
-  notes: string | null;
-  created_at: string;
-  // Enriched preview fields joined from the raw_event record
-  preview_title: string | null;
-  preview_url: string | null;
-  preview_community: string | null;
-  preview_confidence: number | null;
-}
-
 export interface StatsOut {
   events_total: number;
   events_this_week: number;
@@ -130,32 +113,6 @@ export interface CommunitySubmission {
   status: string;
   created_at: string;
 }
-
-export interface QueueItem {
-  id: string;
-  pipeline_status: string;
-  extraction_method: string | null;
-  extraction_confidence: number;
-  title: string;
-  url: string | null;
-  community: string | null;
-  reason: string | null;
-  seen_at: string;
-}
-
-export interface LastPublishedEvent {
-  id: string;
-  title: string;
-  start_at: string;
-  mode: string | null;
-  community_name: string | null;
-  canonical_url: string;
-  poster_url: string | null;
-  published_at: string;
-  date_tba: boolean;
-}
-
-
 
 export const adminService = {
   // Auth
@@ -229,18 +186,4 @@ export const adminService = {
     const { data } = await adminApi.post<Record<string, unknown>>(`/admin/moderation/communities/${id}/reject`);
     return data;
   },
-
-  // Event pipeline queue
-  listEventQueue: async (): Promise<QueueItem[]> => {
-    const { data } = await adminApi.get<QueueItem[]>("/admin/events/queue");
-    return data;
-  },
-  getLastPublished: async (): Promise<LastPublishedEvent | null> => {
-    const { data } = await adminApi.get<LastPublishedEvent | null>("/admin/events/queue/last-published");
-    return data;
-  },
-  removeFromQueue: async (rawEventId: string): Promise<void> => {
-    await adminApi.delete(`/admin/events/queue/${rawEventId}`);
-  },
-
 };
