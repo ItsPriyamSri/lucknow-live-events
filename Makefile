@@ -28,5 +28,5 @@ shell:
 	docker compose --env-file .env.dev -f docker/docker-compose.dev.yml exec api bash
 
 logs:
-	docker compose --env-file .env.dev -f docker/docker-compose.dev.yml logs -f api worker
+	docker compose --env-file .env.dev -f docker/docker-compose.dev.yml logs -f api web
 
