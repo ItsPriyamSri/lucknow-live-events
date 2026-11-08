@@ -82,37 +82,3 @@ async def delete_event(
     deleted = await admin_service.delete_event(db, event_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Event not found")
-
-
-# ─── Pipeline Queue ───────────────────────────────────────────────────────────
-
-@router.get("/queue", response_model=list[dict])
-async def list_event_queue(
-    admin: Admin,
-    limit: int = Query(50, ge=1, le=200),
-    db: AsyncSession = Depends(get_db),
-):
-    """List raw_events currently in the pipeline queue (pending/moderation/normalized)."""
-    return await admin_service.list_event_queue(db, limit=limit)
-
-
-@router.get("/queue/last-published", response_model=dict | None)
-async def get_last_published(
-    admin: Admin,
-    db: AsyncSession = Depends(get_db),
-):
-    """Return the most recently published event."""
-    return await admin_service.get_last_published_event(db)
-
-
-@router.delete("/queue/{raw_event_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_from_queue(
-    raw_event_id: str,
-    admin: Admin,
-    db: AsyncSession = Depends(get_db),
-):
-    """Hard-delete a raw_event from the pipeline queue. Also removes moderation entries."""
-    removed = await admin_service.remove_from_queue(db, raw_event_id)
-    if not removed:
-        raise HTTPException(status_code=404, detail="Queue item not found")
-
