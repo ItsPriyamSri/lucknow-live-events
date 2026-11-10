@@ -144,34 +144,6 @@ class EventUpdate(BaseModel):
     is_cancelled: bool | None = None
 
 
-# ─── Moderation ───────────────────────────────────────────────────────────────
-
-class ModerationItemOut(BaseModel):
-    id: str
-    entity_type: str | None
-    entity_id: str | None
-    reason: str | None
-    severity: str | None
-    status: str
-    ai_verdict: dict[str, Any] | None
-    notes: str | None
-    created_at: datetime
-    # Enriched preview fields (from the related raw_event / event record)
-    preview_title: str | None = None
-    preview_url: str | None = None
-    preview_community: str | None = None
-    preview_confidence: float | None = None
-
-    class Config:
-        from_attributes = True
-
-    @field_validator("id", mode="before")
-    @classmethod
-    def _id_to_str(cls, v: Any) -> str:
-        return _coerce_uuid(v)
-
-
-
 # ─── Stats ────────────────────────────────────────────────────────────────────
 
 class StatsOut(BaseModel):

@@ -8,21 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.core.database import get_db
 from api.core.deps import get_current_admin
-from api.schemas.admin import ModerationItemOut
 from api.services import admin_service
 
 
 router = APIRouter()
 Admin = Annotated[dict, Depends(get_current_admin)]
-
-
-# ─── Legacy: raw_event moderation queue (read-only, AI-managed) ───────────────
-# Kept for internal inspection but no human approve/reject needed.
-
-@router.get("", response_model=list[ModerationItemOut])
-async def list_pending(admin: Admin, db: AsyncSession = Depends(get_db)):
-    """List raw_event items in the AI pipeline queue (for inspection only)."""
-    return await admin_service.list_pending_moderation(db)
 
 
 # ─── Event link submissions ───────────────────────────────────────────────────
