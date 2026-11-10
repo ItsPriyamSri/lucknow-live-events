@@ -29,9 +29,6 @@ services:
       # DATABASE_URL  →  your Neon postgresql+asyncpg:// URL
       - key: DATABASE_URL
         sync: false
-      # REDIS_URL  →  your Upstash rediss:// URL
-      - key: REDIS_URL
-        sync: false
       # JWT_SECRET  →  long random string (keep the same one from .env.production)
       - key: JWT_SECRET
         sync: false

@@ -10,7 +10,8 @@ class Settings(BaseSettings):
     # Only needed for running `alembic upgrade head` locally / in CI.
     # The live API server never uses this — so it is optional for Render/Cloud Run.
     ALEMBIC_DATABASE_URL: str | None = None
-    REDIS_URL: str = "redis://redis:6379/0"
+    # Engine-only dead-man switch. Empty disables the ping.
+    HEALTHCHECK_URL: str = ""
 
     LLM_BASE_URL: str = ""
     LLM_API_KEY: str = ""

@@ -19,6 +19,7 @@ def test_templates_do_not_ship_credentials(name):
         assert values[key] == ""
     assert values["DATABASE_URL"] == ""
     assert values["ALEMBIC_DATABASE_URL"] == ""
+    assert values["HEALTHCHECK_URL"] == ""
     assert not any(key.startswith("NEXT_PUBLIC_") and "SECRET" in key for key in values)
 
 
@@ -91,13 +92,14 @@ def test_compose_loads_selected_environment_and_rejects_missing_credentials(tmp_
             key: value.replace("$$", "$") for key, value in service.get("environment", {}).items()
         }
     assert services["postgres"]["environment"]["POSTGRES_PASSWORD"] == values["POSTGRES_PASSWORD"]
-    for service in ["api", "worker", "beat", "flower"]:
-        env = services[service]["environment"]
-        assert env["DATABASE_URL"] == values["DATABASE_URL"]
-        assert env["JWT_SECRET"] == values["JWT_SECRET"]
-        assert env["ADMIN_PASSWORD_HASH"] == values["ADMIN_PASSWORD_HASH"]
-        assert env["LLM_API_KEY"] == ""
-        assert env["DEBUG"] == ("false" if mode == "prod" else "true")
+    # The engine runs from system cron; the stack must not bring back Celery/Redis.
+    assert not {"redis", "worker", "beat", "flower"} & services.keys()
+    api_env = services["api"]["environment"]
+    assert api_env["DATABASE_URL"] == values["DATABASE_URL"]
+    assert api_env["JWT_SECRET"] == values["JWT_SECRET"]
+    assert api_env["ADMIN_PASSWORD_HASH"] == values["ADMIN_PASSWORD_HASH"]
+    assert api_env["LLM_API_KEY"] == ""
+    assert api_env["DEBUG"] == ("false" if mode == "prod" else "true")
     if mode == "dev":
         web_env = services["web"]["environment"]
         assert web_env["INTERNAL_API_URL"] == values["INTERNAL_API_URL"]
