@@ -17,7 +17,7 @@ async def test_submission_is_stored_pending_and_listed_for_admin(client: AsyncCl
     response = await client.post("/api/v1/submissions", json={"event_url": url})
     assert response.status_code == 200
     assert response.json()["status"] == "pending"
-    # No Celery task or AI call: nothing from the old worker package gets loaded.
+    # The old worker package is gone; submitting must not import one.
     assert not any(name == "workers" or name.startswith("workers.") for name in sys.modules)
 
     listed = (await client.get("/api/v1/admin/moderation/submissions")).json()

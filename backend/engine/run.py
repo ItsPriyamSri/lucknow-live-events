@@ -10,13 +10,12 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import os
 import sys
 from datetime import UTC, datetime
 
 import structlog
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.models.event import Event
@@ -69,7 +68,8 @@ async def _run(session: AsyncSession, platform: str | None, dry_run: bool, ping:
             )
         if platform and not sources:
             log.info("engine.source", platform=platform, status="failed", error="no enabled source")
-            return 1
+            # Fall through: the dead-man ping must still report the failure.
+            failed = True
         # Re-load each source by id. A failed source rolls the session back, which
         # expires the other objects, and a lazy read then fails on async.
         for source_id in [source.id for source in sources]:
@@ -105,9 +105,10 @@ async def _source(session: AsyncSession, source: Source, dry_run: bool) -> str:
             await session.commit()
             run_id = run.id
         listing = await adapter.list_events(config)
-        if not listing and await _had_events(session, source.id):
-            # A sudden empty list is a failed fetch. Saving nothing keeps last_seen
-            # put, so a later cleanup does not treat the old events as gone.
+        if not listing and await _has_unended_events(session, source.id):
+            # An empty list is a failed fetch while the source still has an
+            # event that has not ended. Saving nothing keeps last_seen put, so
+            # cleanup does not treat the old events as gone.
             await _finish(
                 session,
                 run_id=run_id,
@@ -201,14 +202,18 @@ async def _collect(adapter, platform: str, config: dict, listing: list) -> tuple
     return events, listed, rejected, reasons
 
 
-async def _had_events(session: AsyncSession, source_id) -> bool:
-    fetched = await session.scalar(
-        select(IngestRun.fetched)
-        .where(IngestRun.source_id == source_id, IngestRun.status == "success")
-        .order_by(IngestRun.started_at.desc())
-        .limit(1)
+async def _has_unended_events(session: AsyncSession, source_id: str) -> bool:
+    # No end date: the start is when the event is over, same rule as cleanup.
+    return bool(
+        await session.scalar(
+            select(Event.id)
+            .where(
+                Event.source_id == source_id,
+                func.coalesce(Event.end_at, Event.start_at) >= datetime.now(UTC),
+            )
+            .limit(1)
+        )
     )
-    return bool(fetched)
 
 
 async def _preview(session: AsyncSession, source: Source, events: list) -> dict[str, int]:
@@ -292,15 +297,20 @@ async def _finish(
 
 
 async def _ping(failed: bool) -> None:
-    url = os.environ.get("HEALTHCHECK_URL", "").strip()
+    # Lazy import keeps `python -m engine.run --help` free of a DATABASE_URL.
+    from api.core.config import settings
+
+    url = settings.HEALTHCHECK_URL.strip()
     if not url:
         return
     target = f"{url.rstrip('/')}/fail" if failed else url
     try:
-        response = await http.get(target)
+        # The ping URL is a bearer token: keep it out of the request log.
+        response = await http.get(target, log_url=False)
         await response.aclose()
-    except Exception:  # a missed ping must not change the run's exit code
-        log.exception("engine.healthcheck")
+    except Exception as exc:  # noqa: BLE001  # a missed ping must not change the exit code
+        # Only the type: HTTP errors carry the ping URL in their message.
+        log.warning("engine.healthcheck", error=type(exc).__name__)
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -3,16 +3,22 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { adminService, type StatsOut } from "@/lib/admin-api";
-import { Shield, Loader2, LayoutDashboard, Database, Inbox, List, LogOut } from "lucide-react";
+import {
+  Shield,
+  Loader2,
+  LayoutDashboard,
+  Database,
+  Inbox,
+  LogOut,
+} from "lucide-react";
 
 // Sub-components (loaded lazily per tab)
 import { StatsPanel } from "./_components/StatsPanel";
 import { EventsTab } from "./_components/EventsTab";
 import { SourcesTab } from "./_components/SourcesTab";
 import { ModerationTab } from "./_components/ModerationTab";
-import { EventQueueTab } from "./_components/EventQueueTab";
 
-type Tab = "events" | "sources" | "moderation" | "queue";
+type Tab = "events" | "sources" | "moderation";
 
 export default function MissionControlPage() {
   const router = useRouter();
@@ -60,7 +66,6 @@ export default function MissionControlPage() {
   const tabs: { id: Tab; label: string; icon: React.ReactNode; badge?: number }[] = [
     { id: "events", label: "Events", icon: <LayoutDashboard className="w-4 h-4" />, badge: stats?.events_total },
     { id: "sources", label: "Sources", icon: <Database className="w-4 h-4" />, badge: stats?.sources_active },
-    { id: "queue", label: "Queue", icon: <List className="w-4 h-4" /> },
     { id: "moderation", label: "Community", icon: <Inbox className="w-4 h-4" /> },
   ];
 
@@ -116,7 +121,6 @@ export default function MissionControlPage() {
         {/* Tab content */}
         {activeTab === "events" && <EventsTab />}
         {activeTab === "sources" && <SourcesTab />}
-        {activeTab === "queue" && <EventQueueTab />}
         {activeTab === "moderation" && <ModerationTab />}
       </div>
     </div>
