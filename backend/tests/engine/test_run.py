@@ -117,6 +117,33 @@ async def test_empty_listing_after_a_success_is_failed_and_not_saved(db_session,
     )
 
 
+async def test_first_empty_listing_is_a_success(db_session, monkeypatch):
+    source = await add_source(db_session, "Fresh", "fresh")
+    monkeypatch.setattr(runner, "REGISTRY", {"fresh": Fake([[]], "fresh")})
+
+    assert await runner.run(platform="fresh", session=db_session) == 0
+
+    run = await db_session.scalar(select(IngestRun).where(IngestRun.source_id == source.id))
+    assert (run.status, run.fetched) == ("success", 0)
+
+
+async def test_empty_listing_after_the_last_event_ended_is_a_success(db_session, monkeypatch):
+    source = await add_source(db_session, "Ended", "ended")
+    fake = Fake([[{"id": "1"}], []], "ended")
+    fake.start = datetime.now(UTC) - timedelta(hours=2)
+    monkeypatch.setattr(runner, "REGISTRY", {"ended": fake})
+
+    assert await runner.run(platform="ended", session=db_session) == 0
+    assert await db_session.scalar(select(func.count()).select_from(Event)) == 1
+    assert await runner.run(platform="ended", session=db_session) == 0
+
+    latest = await db_session.scalar(
+        select(IngestRun)
+        .where(IngestRun.source_id == source.id)
+        .order_by(IngestRun.started_at.desc())
+        .limit(1)
+    )
+    assert (latest.status, latest.fetched) == ("success", 0)
 class _FakeResponse:
     async def aclose(self) -> None:
         return None
