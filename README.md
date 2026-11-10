@@ -55,7 +55,7 @@ The platform is built and maintained by the Lucknow tech community, for the Luck
 |---|---|
 | Frontend | Next.js 15 (App Router), TypeScript, Tailwind CSS |
 | Backend API | FastAPI, Python 3.12, SQLAlchemy 2.0 (async) |
-| Task Queue | Celery + Redis |
+| Scheduler | system cron (daily at 06:00 IST) |
 | Database | PostgreSQL 16 |
 | AI | Google Gemini 3.0 Flash via `google-genai` SDK |
 | Containerisation | Docker / Podman Compose |
@@ -81,10 +81,6 @@ lucknow-events/
 │   │   └── services/         # Business logic
 │   ├── ingestion/            # Scraping + pipeline orchestration
 │   │   └── adapters/         # Platform-specific scrapers (WIP)
-│   ├── workers/              # Celery tasks
-│   │   └── tasks/
-│   │       ├── discovery.py  # AI event discovery (runs every 3h)
-│   │       └── crawl.py      # URL crawling + extraction
 │   └── alembic/              # Database migrations
 ├── docker/
 │   └── docker-compose.dev.yml
@@ -121,9 +117,7 @@ This starts:
 | **Frontend** (Next.js) | http://localhost:3000 |
 | **Backend API** (FastAPI) | http://localhost:8000 |
 | **API Docs** (Swagger) | http://localhost:8000/docs |
-| **Task Monitor** (Flower) | http://localhost:5555 |
 | **PostgreSQL** | localhost:5432 |
-| **Redis** | localhost:6379 |
 
 ### 3. Run database migrations
 
@@ -156,7 +150,8 @@ Run `make seed` once to add the initial source rows, then preview the configured
 docker compose --env-file .env.dev -f docker/docker-compose.dev.yml exec api python -m engine.run --dry-run
 ```
 
-Run `make crawl-all` to fetch and save events with the engine. Daily scheduling is tracked separately in #18.
+Run `make crawl-all` to fetch and save events with the engine. In production a
+system cron job runs the same command once a day; see [Deployment](#deployment).
 
 ---
 
@@ -166,7 +161,7 @@ Use separate, ignored files for each environment:
 
 - Development: copy `.env.example.dev` to `.env.dev` and pass `--env-file .env.dev` with `docker/docker-compose.dev.yml` (also used by `make dev`).
 - Production: copy `.env.example.prod` to `.env.prod` and pass `--env-file .env.prod` with `docker/docker-compose.prod.yml`. This Compose file runs the backend services; configure the separately hosted frontend with the public URL settings below before building it.
-- Without Compose: copy `.env.example` to `backend/.env` or export the backend variables in your shell. Use localhost database/Redis URLs. Put only frontend URL/site settings in `apps/web/.env.local`; Next.js does not read the repository-root env file.
+- Without Compose: copy `.env.example` to `backend/.env` or export the backend variables in your shell. Use a localhost database URL. Put only frontend URL/site settings in `apps/web/.env.local`; Next.js does not read the repository-root env file.
 
 Run Compose commands from the repository root. `--env-file` supplies Compose interpolation; each Compose file also loads its matching file into the backend services. Shell variables take precedence, so avoid mixing exported production values with development commands. Both templates intentionally leave credentials and database URLs blank. Fill them privately before starting services. Compose rejects a missing database password/URL, and production also requires the admin hash and signing key.
 
@@ -175,7 +170,7 @@ Run Compose commands from the repository root. `--env-file` supplies Compose int
 | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Container database settings; the password has no default |
 | `DATABASE_URL` | Async PostgreSQL URL with matching credentials (`postgresql+asyncpg://…`) |
 | `ALEMBIC_DATABASE_URL` | Sync URL for offline migrations (`postgresql+psycopg2://…`); online migrations use `DATABASE_URL` |
-| `REDIS_URL` | Redis URL; use `redis://redis:6379/0` inside Compose |
+| `HEALTHCHECK_URL` | healthchecks.io ping URL used by the daily engine run; blank disables the ping |
 | `JWT_SECRET` | Private backend signing key; use a long random value supplied securely, never `NEXT_PUBLIC_*` |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH` | Backend login identity and bcrypt password hash |
 | `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` | Optional future text-completion helper; leave blank for normal operation. The base URL includes the provider's API prefix (such as `/v1`). |
@@ -199,16 +194,13 @@ These files describe source configuration only. Applying new database credential
 
 ```bash
 # API only
-docker compose --env-file .env.dev -f docker/docker-compose.dev.yml up api postgres redis
+docker compose --env-file .env.dev -f docker/docker-compose.dev.yml up api postgres
 
 # Frontend only (after installing deps)
 cd apps/web && pnpm install && pnpm dev
 
-# Celery worker only
-docker compose --env-file .env.dev -f docker/docker-compose.dev.yml up worker
-
-# Celery beat (scheduler) only
-docker compose --env-file .env.dev -f docker/docker-compose.dev.yml up beat
+# Engine only (manual run; production uses system cron)
+docker compose --env-file .env.dev -f docker/docker-compose.dev.yml exec api python -m engine.run
 ```
 
 ---
@@ -225,6 +217,146 @@ docker compose --env-file .env.dev -f docker/docker-compose.dev.yml exec api ale
 # Downgrade one step
 docker compose --env-file .env.dev -f docker/docker-compose.dev.yml exec api alembic downgrade -1
 ```
+
+---
+
+## Deployment
+
+| Piece | Runs on |
+|---|---|
+| Frontend | Vercel (`apps/web`) |
+| API | Render (`render.yaml`) or the Compose backend |
+| PostgreSQL | Neon or Compose Postgres |
+| Daily engine | system cron on a VPS or another long-lived host |
+
+The engine is a plain command, not a queue worker. Cron runs
+`python -m engine.run` once a day at 06:00 IST. The command pings
+healthchecks.io when the run finishes, so a failed or missed run alerts you.
+
+### VPS setup for the engine
+
+Use a dedicated `lucknow` user and keep the checkout at
+`/opt/lucknow-live-events`.
+
+1. Install `git`, Python 3.12 and `uv` (on the service user's `PATH`, for
+   example `/usr/local/bin/uv`), then create the service user and the
+   checkout directory:
+
+   ```bash
+   sudo useradd --system --user-group --create-home \
+     --home-dir /var/lib/lucknow --shell /bin/sh lucknow
+   sudo install -d -o lucknow -g lucknow /opt/lucknow-live-events
+   sudo timedatectl set-timezone UTC
+   ```
+
+   Keep the server clock on UTC. The crontab entry below uses `00:30 UTC`,
+   which is `06:00 Asia/Kolkata`; Debian and Ubuntu cron do not reliably
+   support `CRON_TZ`.
+
+2. Clone the repository and install the locked dependencies:
+
+   ```bash
+   sudo -u lucknow git clone \
+     https://github.com/LucknowAI/lucknow-live-events.git \
+     /opt/lucknow-live-events
+   cd /opt/lucknow-live-events/backend
+   sudo -u lucknow uv sync --frozen --no-dev
+   ```
+
+3. Create the private env file at `/etc/lucknow-live-events/engine.env`.
+   Root owns it; the `lucknow` user reads it through the group:
+
+   ```bash
+   sudo install -d -m 0755 /etc/lucknow-live-events
+   sudo install -m 0640 -o root -g lucknow /dev/null /etc/lucknow-live-events/engine.env
+   sudo "${EDITOR:-vi}" /etc/lucknow-live-events/engine.env
+   ```
+
+   It needs at least:
+
+   ```dotenv
+   DATABASE_URL=postgresql+asyncpg://…
+   ALEMBIC_DATABASE_URL=postgresql+psycopg2://…
+   HEALTHCHECK_URL=https://hc-ping.com/…
+   ```
+
+   `HEALTHCHECK_URL` is a bearer token; keep the file private. Quote values
+   that contain characters your shell treats specially.
+
+4. Apply migrations and seed the source rows once:
+
+   ```bash
+   sudo -u lucknow sh -c '
+     set -a; . /etc/lucknow-live-events/engine.env; set +a
+     cd /opt/lucknow-live-events/backend
+     .venv/bin/alembic upgrade head
+     .venv/bin/python ../scripts/seed_sources.py
+   '
+   ```
+
+   The runner only reads rows whose platform has an adapter (`bevy`, `luma`,
+   `unstop`); the rest of the seed rows stay dormant until their adapter
+   lands. Keep the ones you want enabled.
+
+5. Create the log directory, then test the engine without saving events:
+
+   ```bash
+   sudo install -d -o lucknow -g lucknow /var/log/lucknow-live-events
+   sudo -u lucknow /opt/lucknow-live-events/deploy/run-engine.sh --dry-run
+   sudo tail -n 20 /var/log/lucknow-live-events/engine.log
+   ```
+
+6. Create a healthchecks.io check with a period of **1 day** and a grace of
+   **1 hour**, then put its ping URL in `HEALTHCHECK_URL`. A run that never
+   starts is caught by the grace period, so create the check before scheduling
+   cron.
+
+7. Run the engine once and confirm the check turns green:
+
+   ```bash
+   sudo -u lucknow /opt/lucknow-live-events/deploy/run-engine.sh
+   ```
+
+8. Install the cron and log rotation files:
+
+   ```bash
+   sudo install -m 0644 /opt/lucknow-live-events/deploy/crontab /etc/cron.d/lucknow-live-events
+   sudo install -m 0644 /opt/lucknow-live-events/deploy/logrotate /etc/logrotate.d/lucknow-live-events
+   ```
+
+   Cron calls `/opt/lucknow-live-events/deploy/run-engine.sh` as the `lucknow`
+   user at `00:30 UTC`. The script loads the env file, appends to
+   `/var/log/lucknow-live-events/engine.log`, and exits with the engine's
+   status. Logrotate keeps 14 daily files.
+
+9. Failure drill. In your database console (Neon SQL editor or `psql`), add a
+   temporary Bevy source with a bad chapter id:
+
+   ```sql
+   INSERT INTO sources (name, platform, base_url, config_json)
+   VALUES (
+     'Broken Bevy (drill)',
+     'bevy',
+     'https://gdg.community.dev',
+     '{"chapter_id": "not-a-number"}'
+   );
+   ```
+
+   Run only Bevy sources and confirm the command exits `1` and the check turns
+   red:
+
+   ```bash
+   sudo -u lucknow /opt/lucknow-live-events/deploy/run-engine.sh --source bevy
+   echo "exit=$?"
+   ```
+
+   Remove the drill row, then run the engine again to return the check to green:
+
+   ```sql
+   DELETE FROM sources WHERE name = 'Broken Bevy (drill)';
+   ```
+
+   A source that fails never marks its events as missing.
 
 ---
 

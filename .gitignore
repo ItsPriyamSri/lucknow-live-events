@@ -69,8 +69,6 @@ db.sqlite3-journal
 .ruff_cache/
 .pyre/
 .pytype/
-celerybeat-schedule
-celerybeat.pid
 
 # Environments
 .env
@@ -172,7 +170,6 @@ docker-compose.override.yml
 data/
 snapshots/
 pgdata/
-redis_data/
 
 # ==============================================================================
 # Project Specific
